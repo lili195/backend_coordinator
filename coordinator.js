@@ -35,6 +35,64 @@ function printLog(message) {
 const port = 3000
 
 
+
+//ALGORITMO DE BERKELEY 
+
+// Método para obtener la hora de cada servidor en la lista
+const horasServidores = [];
+const obtenerHoraServidores = async (serversList) => {
+  for (const server of serversList) {
+      try {
+          const url = `${server}/obtenerHora`; 
+          const res = await axios.get(url);
+          if (res && res.data && res.data.horaServidor) {
+              const horaServidor = res.data.horaServidor;
+              horasServidores.push({ servidor: server, hora: horaServidor });
+          }
+      } catch (error) {
+          console.error(`Error al solicitar la hora al servidor ${server}: ${error.message}`);
+      }
+  }
+
+  return horasServidores;
+};
+
+
+// Método para calcular el promedio de las horas de los servidores
+const calcularPromedio = (horasServidores) => {
+  let sumaHoras = 0;
+  horasServidores.forEach(item => {
+      sumaHoras += item.hora;
+  });
+  return sumaHoras / horasServidores.length;
+};
+
+
+// Método para obtener la diferencia entre el tiempo actual del servidor y el promedio de los tiempos
+const calcularDiferenciaTiempo = (horaActualServidor, promedioTiempo) => {
+  return horaActualServidor - promedioTiempo;
+};
+
+// Método principal del algoritmo de Berkeley
+const berkeley = async (serversList) => {
+  const horasServidores = await obtenerHoraServidores(serversList);
+  const promedioTiempo = calcularPromedio(horasServidores);
+  horasServidores.forEach(async item => {
+      const diferencia = calcularDiferenciaTiempo(item.hora, promedioTiempo);
+      console.log(`Diferencia de tiempo para el servidor ${item.servidor}: ${diferencia}`);
+      try {
+          const url = `${item.servidor}/ajustarHora`; 
+          await axios.post(url, { diferenciaTiempo: diferencia });
+          console.log(`Diferencia de tiempo enviada al servidor ${item.servidor}`);
+      } catch (error) {
+          console.error(`Error al enviar la diferencia de tiempo al servidor ${item.servidor}: ${error.message}`);
+      }
+  });
+};
+
+
+
+
 const checkServerStatus = async () => {
   const updatedServersList = [];
   for (const server of serversList) {
