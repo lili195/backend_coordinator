@@ -23,7 +23,8 @@ const io = new Server(server, {
     }
 });
 
-let serversList = [];
+let serversList = ['http://localhost:16000', ];
+let timeout = 10000;
 
 
 function printLog(message) {
@@ -34,7 +35,49 @@ function printLog(message) {
 
 const port = 3000
 
+// Ruta para obtener la hora del coordinador
+app.get('/coordinatorTime', async (req, res) => {
+  try {
+    const timeCoordinador = Date.now();
+    res.json(timeCoordinador);
+  } catch (error) {
+    console.error('Error al obtener la lista de servidores:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
+
+// Ruta para obtener la lista de servidores
+app.get('/servers', async (req, res) => {
+  try {
+    res.json(serversList);
+  } catch (error) {
+    console.error('Error al obtener la lista de servidores:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ruta para lanzar una nueva instancia
+app.post('/launchInstance', async (req, res) => {
+  try {
+    // Codigo Nueva Instancia
+    res.json({ message: 'Nueva instancia lanzada correctamente' });
+  } catch (error) {
+    console.error('Error al lanzar una nueva instancia:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ruta para ejecutar el algoritmo de Berkeley
+app.post('/runBerkeleyAlgorithm', async (req, res) => {
+  try {
+    berkeley();
+    res.json({ message: 'Algoritmo de Berkeley ejecutado correctamente' });
+  } catch (error) {
+    console.error('Error al ejecutar el algoritmo de Berkeley:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 //ALGORITMO DE BERKELEY 
 
@@ -91,20 +134,18 @@ const berkeley = async (serversList) => {
 };
 
 
-
-
 const checkServerStatus = async () => {
   const updatedServersList = [];
   for (const server of serversList) {
       printLog(`Iniciando chequeo para el servidor: ${server} ....`)
       try {
-          const url = server + "/monitor/healthchek"
+          const url = server + "/coordinador/healthcheck"
           printLog("Enviando peticiones a:" + url)
 
           const start = Date.now();
           const res = await axios.get(url)
           if (res) {
-              const end = Date.now(); // Momento de recepción de la respuesta
+              const end = Date.now();
               resTime = end - start;
               printLog(`=>    Tiempo de respuesta del servidor en milisegundos ${server} es ${resTime}ms`)
               if (resTime >= timeout) {
@@ -112,7 +153,6 @@ const checkServerStatus = async () => {
                   printLog(`Servidor ${server} eliminado por exceder el tiempo de respuesta.`);
                   printLog("+++++++++++ Servidores restantes +++++++++++ \n")
                   console.log(serversList)
-                  launchNewInstance();
                   io.emit('server_deleted', { server, responseTime: resTime });
               } else {
                   updatedServersList.push({ server, responseTime: resTime });
@@ -125,7 +165,6 @@ const checkServerStatus = async () => {
           printLog("+++++++++++ Servidores restantes +++++++++++ \n")
           console.log(serversList)
           io.emit('server_deleted', { server, responseTime: null });
-          launchNewInstance();
       }
   }
   io.emit('update_servers', { servers: updatedServersList })
