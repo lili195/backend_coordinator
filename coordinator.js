@@ -25,7 +25,8 @@ const io = new Server(server, {
 
 let serversList = ['http://localhost:16000', ];
 let timeout = 10000;
-
+let diferenciaTime = [];
+let ajusteHora = 0;
 
 function printLog(message) {
   const date = new Date().toLocaleDateString();
@@ -38,8 +39,12 @@ const port = 3000
 // Ruta para obtener la hora del coordinador
 app.get('/coordinatorTime', async (req, res) => {
   try {
-    const timeCoordinador = Date.now();
-    res.json(timeCoordinador);
+
+    // Llamar a la función para enviar la hora del coordinador a los servidores
+    await enviarHoraAClientes(serversList);
+    await recibirDiferenciaHoraClientes(serversList);
+    await promedioDiferencias();
+    await ajustarHoraCoordinador();
   } catch (error) {
     console.error('Error al obtener la lista de servidores:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -81,40 +86,66 @@ app.post('/runBerkeleyAlgorithm', async (req, res) => {
 
 //ALGORITMO DE BERKELEY 
 
-// Método para obtener la hora de cada servidor en la lista
-const horasServidores = [];
-const obtenerHoraServidores = async (serversList) => {
+// Método para formatear la hora en formato HORA-MINUTOS-SEGUNDOS-MILISEGUNDOS
+const formatearHora = (hora) => {
+  const fecha = new Date(hora);
+  const horaFormateada = `${fecha.getHours()}:${fecha.getMinutes()}:${fecha.getSeconds()}:${fecha.getMilliseconds()}`;
+  return horaFormateada;
+};
+
+// Método para enviar la hora del cliente a cada servidor en la lista
+const timeCoordinador =Date();
+const enviarHoraAClientes = async (serversList) => {
+  const horaFormateada = formatearHora(timeCoordinador);
   for (const server of serversList) {
-      try {
-          const url = `${server}/obtenerHora`; 
-          const res = await axios.get(url);
-          if (res && res.data && res.data.horaServidor) {
-              const horaServidor = res.data.horaServidor;
-              horasServidores.push({ servidor: server, hora: horaServidor });
-          }
-      } catch (error) {
-          console.error(`Error al solicitar la hora al servidor ${server}: ${error.message}`);
-      }
+    try {
+      const url = `${server}/horaCoordinador`;
+      const res = await axios.post(url, { horaCliente: horaFormateada });
+      printLog('Hora del coordinador --> ' + horaFormateada + ' enviada correctamente a --> ' + server);
+    } catch (error) {
+      console.error(`Error al enviar la hora del coordinador a ${server}: ${error.message}`);
+    }
   }
-
-  return horasServidores;
 };
 
 
-// Método para calcular el promedio de las horas de los servidores
-const calcularPromedio = (horasServidores) => {
-  let sumaHoras = 0;
-  horasServidores.forEach(item => {
-      sumaHoras += item.hora;
-  });
-  return sumaHoras / horasServidores.length;
+
+
+const recibirDiferenciaHoraClientes = async (serversList) => {
+  try {
+    for (const server of serversList) {
+      const url = `${server}/diferenciaHora`;
+      const res = await axios.post(url);
+      const diferencia = res.data.diferencia; 
+      diferenciaTime.push(diferencia);
+      printLog(`Diferencia de hora recibida del cliente del cliente --> ${server} --> DIFERENCIA ${diferencia} segundos`);
+    }
+  } catch (error) {
+    console.error(`Error al recibir la diferencia de hora de los clientes: ${error.message}`);
+  }
 };
 
 
-// Método para obtener la diferencia entre el tiempo actual del servidor y el promedio de los tiempos
-const calcularDiferenciaTiempo = (horaActualServidor, promedioTiempo) => {
-  return horaActualServidor - promedioTiempo;
+
+const promedioDiferencias = async () => {
+    let totalDiferences = 0;
+    for (const diferenciaCliente of diferenciaTime){
+      totalDiferences+= diferenciaCliente;
+    }
+
+    ajusteHora = totalDiferences / (diferenciaTime.length + 1);
+    printLog(`Promedio de diferencias de hora: ${ajusteHora} segundos`);
+}
+
+
+const ajustarHoraCoordinador = async () => {
+  let fechaActual = new Date(timeCoordinador);
+  fechaActual.setSeconds(fechaActual.getSeconds() + ajusteHora);
+  const horaFormateada = formatearHora(fechaActual);
+  printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
+  // Aquí podrías enviar la nueva hora a los servidores si es necesario
 };
+
 
 // Método principal del algoritmo de Berkeley
 const berkeley = async (serversList) => {
@@ -134,56 +165,56 @@ const berkeley = async (serversList) => {
 };
 
 
-const checkServerStatus = async () => {
-  const updatedServersList = [];
-  for (const server of serversList) {
-      printLog(`Iniciando chequeo para el servidor: ${server} ....`)
-      try {
-          const url = server + "/coordinador/healthcheck"
-          printLog("Enviando peticiones a:" + url)
+// const checkServerStatus = async () => {
+//   const updatedServersList = [];
+//   for (const server of serversList) {
+//       printLog(`Iniciando chequeo para el servidor: ${server} ....`)
+//       try {
+//           const url = server + "/coordinador/healthcheck"
+//           printLog("Enviando peticiones a:" + url)
 
-          const start = Date.now();
-          const res = await axios.get(url)
-          if (res) {
-              const end = Date.now();
-              resTime = end - start;
-              printLog(`=>    Tiempo de respuesta del servidor en milisegundos ${server} es ${resTime}ms`)
-              if (resTime >= timeout) {
-                  serversList.splice(serversList.indexOf(server), 1);
-                  printLog(`Servidor ${server} eliminado por exceder el tiempo de respuesta.`);
-                  printLog("+++++++++++ Servidores restantes +++++++++++ \n")
-                  console.log(serversList)
-                  io.emit('server_deleted', { server, responseTime: resTime });
-              } else {
-                  updatedServersList.push({ server, responseTime: resTime });
-                  printLog(`=========     Servidor ${server} vivo     =========`)
-              }
-          }
-      } catch (error) {
-          serversList.splice(serversList.indexOf(server), 1);
-          printLog(`La solicitud fue rechazada, servidor ${server} eliminado`);
-          printLog("+++++++++++ Servidores restantes +++++++++++ \n")
-          console.log(serversList)
-          io.emit('server_deleted', { server, responseTime: null });
-      }
-  }
-  io.emit('update_servers', { servers: updatedServersList })
-};
-
-
-// Verificar el estado de los servidores cada 5 segundos
-setInterval(checkServerStatus, 5000)
-
-io.on('connection', socket => {
-  printLog('Cliente conectado: ' + socket.id);
+//           const start = Date.now();
+//           const res = await axios.get(url)
+//           if (res) {
+//               const end = Date.now();
+//               resTime = end - start;
+//               printLog(`=>    Tiempo de respuesta del servidor en milisegundos ${server} es ${resTime}ms`)
+//               if (resTime >= timeout) {
+//                   serversList.splice(serversList.indexOf(server), 1);
+//                   printLog(`Servidor ${server} eliminado por exceder el tiempo de respuesta.`);
+//                   printLog("+++++++++++ Servidores restantes +++++++++++ \n")
+//                   console.log(serversList)
+//                   io.emit('server_deleted', { server, responseTime: resTime });
+//               } else {
+//                   updatedServersList.push({ server, responseTime: resTime });
+//                   printLog(`=========     Servidor ${server} vivo     =========`)
+//               }
+//           }
+//       } catch (error) {
+//           serversList.splice(serversList.indexOf(server), 1);
+//           printLog(`La solicitud fue rechazada, servidor ${server} eliminado`);
+//           printLog("+++++++++++ Servidores restantes +++++++++++ \n")
+//           console.log(serversList)
+//           io.emit('server_deleted', { server, responseTime: null });
+//       }
+//   }
+//   io.emit('update_servers', { servers: updatedServersList })
+// };
 
 
-  socket.emit('servers_list' + serversList);
+// // Verificar el estado de los servidores cada 5 segundos
+// setInterval(checkServerStatus, 5000)
 
-  socket.on('disconnect', () => {
-      printLog('Cliente desconectado: ' + socket.id);
-  });
-});
+// io.on('connection', socket => {
+//   printLog('Cliente conectado: ' + socket.id);
+
+
+//   socket.emit('servers_list' + serversList);
+
+//   socket.on('disconnect', () => {
+//       printLog('Cliente desconectado: ' + socket.id);
+//   });
+// });
 
 
 app.get('/', (req, res) => {
