@@ -24,7 +24,7 @@ const io = new Server(server, {
 });
 
 let serversList = ['http://localhost:16000', ];
-let timeout = 10000;
+let timeout = 10000; 
 let diferenciaTime = [];
 let ajusteHora = 0;
 
@@ -35,21 +35,6 @@ function printLog(message) {
 }
 
 const port = 3000
-
-// Ruta para obtener la hora del coordinador
-app.get('/coordinatorTime', async (req, res) => {
-  try {
-
-    // Llamar a la función para enviar la hora del coordinador a los servidores
-    await enviarHoraAClientes(serversList);
-    await recibirDiferenciaHoraClientes(serversList);
-    await promedioDiferencias();
-    await ajustarHoraCoordinador();
-  } catch (error) {
-    console.error('Error al obtener la lista de servidores:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
 
 
 // Ruta para obtener la lista de servidores
@@ -74,9 +59,9 @@ app.post('/launchInstance', async (req, res) => {
 });
 
 // Ruta para ejecutar el algoritmo de Berkeley
-app.post('/runBerkeleyAlgorithm', async (req, res) => {
+app.get('/runBerkeleyAlgorithm', async (req, res) => {
   try {
-    berkeley();
+    await berkeley();
     res.json({ message: 'Algoritmo de Berkeley ejecutado correctamente' });
   } catch (error) {
     console.error('Error al ejecutar el algoritmo de Berkeley:', error);
@@ -94,9 +79,9 @@ const formatearHora = (hora) => {
 };
 
 // Método para enviar la hora del cliente a cada servidor en la lista
-const timeCoordinador =Date();
-const enviarHoraAClientes = async (serversList) => {
-  const horaFormateada = formatearHora(timeCoordinador);
+
+const enviarHoraAClientes = async (initialTimeCoordinador, serversList) => {
+  let horaFormateada = formatearHora(initialTimeCoordinador);
   for (const server of serversList) {
     try {
       const url = `${server}/horaCoordinador`;
@@ -110,7 +95,7 @@ const enviarHoraAClientes = async (serversList) => {
 
 
 
-
+// Método para recibir la diferencia de horas de cada cliente en la lista
 const recibirDiferenciaHoraClientes = async (serversList) => {
   try {
     for (const server of serversList) {
@@ -126,8 +111,9 @@ const recibirDiferenciaHoraClientes = async (serversList) => {
 };
 
 
-
+// Método para calcular el promedio de las diferencias de hora
 const promedioDiferencias = async () => {
+  try {
     let totalDiferences = 0;
     for (const diferenciaCliente of diferenciaTime){
       totalDiferences+= diferenciaCliente;
@@ -135,34 +121,30 @@ const promedioDiferencias = async () => {
 
     ajusteHora = totalDiferences / (diferenciaTime.length + 1);
     printLog(`Promedio de diferencias de hora: ${ajusteHora} segundos`);
+  } catch (error) {
+    console.error(`Error al calcular el promedio de diferencias de hora: ${error.message}`);
+  }
 }
 
-
-const ajustarHoraCoordinador = async () => {
-  let fechaActual = new Date(timeCoordinador);
-  fechaActual.setSeconds(fechaActual.getSeconds() + ajusteHora);
-  const horaFormateada = formatearHora(fechaActual);
+//  Método para ajustar la hora del coordinador
+const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
+  let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
+  adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
+  const horaFormateada = formatearHora(adjustedTimeCoordinador);
   printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
-  // Aquí podrías enviar la nueva hora a los servidores si es necesario
+  // ENVIAR NUEVA HORA A LOS SERVIDORES
 };
 
 
 // Método principal del algoritmo de Berkeley
-const berkeley = async (serversList) => {
-  const horasServidores = await obtenerHoraServidores(serversList);
-  const promedioTiempo = calcularPromedio(horasServidores);
-  horasServidores.forEach(async item => {
-      const diferencia = calcularDiferenciaTiempo(item.hora, promedioTiempo);
-      console.log(`Diferencia de tiempo para el servidor ${item.servidor}: ${diferencia}`);
-      try {
-          const url = `${item.servidor}/ajustarHora`; 
-          await axios.post(url, { diferenciaTiempo: diferencia });
-          console.log(`Diferencia de tiempo enviada al servidor ${item.servidor}`);
-      } catch (error) {
-          console.error(`Error al enviar la diferencia de tiempo al servidor ${item.servidor}: ${error.message}`);
-      }
-  });
-};
+const berkeley = async () => {
+  let initialTimeCoordinador = new Date();
+  await enviarHoraAClientes(initialTimeCoordinador, serversList);
+  await recibirDiferenciaHoraClientes(serversList);
+  await promedioDiferencias();
+  await ajustarHoraCoordinador(initialTimeCoordinador);
+}
+
 
 
 // const checkServerStatus = async () => {
@@ -216,10 +198,6 @@ const berkeley = async (serversList) => {
 //   });
 // });
 
-
-app.get('/', (req, res) => {
-  res.send('Hello COORDINATOR!')
-})
 
 server.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
