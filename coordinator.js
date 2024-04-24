@@ -3,6 +3,8 @@ const { Server } = require('socket.io');
 const express = require('express');
 const http = require('http')
 const cors = require('cors')
+const { spawn } = require('child_process');
+
 
 const app = express();
 
@@ -104,7 +106,7 @@ app.post('/launchInstance', async (req, res) => {
     printLog('Iniciaindo proceso para lanzar una nueva instancia.....')
 
     launchNewInstance();
-    
+
     res.json({ message: 'Nueva instancia lanzada correctamente' });
   } catch (error) {
     console.error('Error al lanzar una nueva instancia:', error);
