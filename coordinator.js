@@ -31,11 +31,27 @@ let ajusteHora = 0;
 function printLog(message) {
   const date = new Date().toLocaleDateString();
   const time = new Date().toLocaleTimeString();
-  console.log(`[Fecha: ${date}] [Hora: ${time}] [Mensaje: ${message}]`);
+  const logMessage = `[Fecha: ${date}] [Hora: ${time}] [Mensaje: ${message}]`;
+  console.log(logMessage);
+  sendLogsToClient(logMessage)
+}
+
+function sendLogsToClient(logs) {
+  io.emit('logs', { logs: logs });
 }
 
 const port = 3000
 
+// Ruta para obtener la hora del coordinador
+app.get('/coordinatorTime', async (req, res) => {
+  try {
+    let horaFront = new Date;
+    res.json(horaFront);
+  } catch (error) {
+    console.error('Error al obtener la lista de servidores:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 // Ruta para obtener la lista de servidores
 app.get('/servers', async (req, res) => {
