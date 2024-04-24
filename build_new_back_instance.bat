@@ -22,9 +22,3 @@ echo Docker run command: %docker_run_command%
 rem **Ejecutar el comando creado**
 
 %docker_run_command%
-
-rem **pausar el script**
-pause
-
-rem **Cierra la ventana del símbolo del sistema**
-exit
