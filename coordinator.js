@@ -11,21 +11,23 @@ const app = express();
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(cors({
-  origin: '*',
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  credentials: true
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true
 }))
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-  }
+    cors: {
+        origin: "*",
+        methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    }
 });
 
+
+const port = 3000
 let serversList = ['http://localhost:16000', 'http://localhost:14000'];
-let timeout = 10000;
+let timeout = 10000; 
 let diferenciaTime = [];
 let ajusteHora = 0;
 
@@ -41,7 +43,6 @@ function sendLogsToClient(logs) {
   io.emit('logs', { logs: logs });
 }
 
-const port = 3000
 
 // Ruta para obtener la hora del coordinador
 app.get('/coordinatorTime', async (req, res) => {
@@ -64,6 +65,7 @@ app.get('/servers', async (req, res) => {
   }
 });
 
+
 let port_new_instance = 16000
 let ip_container = 'http://localhost'
 
@@ -71,7 +73,7 @@ function launchNewInstance() {
   printLog("               **********************************************************")
   printLog('Lanzando nueva instancia...');
   const scriptPath = 'build_new_back_instance.bat';
-
+  
   const currentPort = port_new_instance;
   port_new_instance++;
 
@@ -82,7 +84,7 @@ function launchNewInstance() {
   printLog("SERVIDORES EN EL ARREGLO: " + serversList)
   /** */
 
-  printLog("NUEVO PUERTO:" + port_new_instance)
+  printLog("NUEVO PUERTO:" + currentPort)
 
   // Captura y muestra la salida estándar del proceso
   batProcess.stdout.on('data', (data) => {
@@ -99,7 +101,7 @@ function launchNewInstance() {
   // Maneja los eventos de cierre del proceso
   batProcess.on('close', (code) => {
     printLog('Proceso de nueva instancia finalizado con código de salida', code);
-  });
+    });
 }
 
 
@@ -135,7 +137,7 @@ const berkeley = async () => {
   await enviarHoraAClientes(initialTimeCoordinador, serversList);
   await recibirDiferenciaHoraClientes(serversList);
   await promedioDiferencias();
-  //await ajustarHoraCoordinador();
+  await ajustarHoraCoordinador(initialTimeCoordinador);
   //await ajustarHoraCoordinadorEnviarServidores(initialTimeCoordinador, serversList,adjustedTimeCoordinador);
 }
 
@@ -163,20 +165,20 @@ const enviarHoraAClientes = async (initialTimeCoordinador, serversList) => {
 };
 
 
-
 // Método para recibir la diferencia de horas de cada cliente en la lista
 const recibirDiferenciaHoraClientes = async (serversList) => {
   try {
 
-    for (const server of serversList) {
-      const response = await axios.post(`${server}/diferenciaHora`);
-      const diferenciaHora = response.data.diferenciaHora;
-      printLog(`Diferencia de hora recibida del servidor ${server}-> ${diferenciaHora} segundos`);
-      diferenciaTime.push({ servidor: server, diferenciaHora: diferenciaHora });
-    }
+      diferenciaTime = [];
+      for (const server of serversList) {
+          const response = await axios.post(`${server}/diferenciaHora`);
+          const diferenciaHora = response.data;
+          printLog(`Diferencia de hora recibida del servidor ${server}: ${diferenciaHora}`);
+          diferenciaTime.push({server: server, diferencia: diferenciaHora});
+      }
   } catch (error) {
-    console.error('Error al recibir la diferencia de hora de los clientes:', error);
-    throw error;
+      console.error('Error al recibir la diferencia de hora de los clientes:', error);
+      throw error;
   }
 };
 
@@ -184,80 +186,86 @@ const recibirDiferenciaHoraClientes = async (serversList) => {
 const promedioDiferencias = async () => {
   try {
     let totalDiferences = 0;
-    for (const diferenciaCliente of diferenciaTime) {
-      totalDiferences += diferenciaCliente.diferenciaHora;
+    for (const diferenciaCliente of diferenciaTime){
+      totalDiferences+= diferenciaCliente.diferencia;
     }
-    console.log(totalDiferences)
-    ajusteHora = totalDiferences / (diferenciaTime.length + 1);
-    printLog(`Promedio de diferencias de hora: ${ajusteHora} segundos`);
+    printLog('Total DIFERENCIAS -->' + totalDiferences)
+
+
+    ajusteHora = Math.abs(totalDiferences / (diferenciaTime.length + 1));
+    printLog(`PROMEDIO DIFERENCIAS --> ${totalDiferences} / ${diferenciaTime.length} + 1`);
+    printLog(`Promedio de diferencias de hora: ${ajusteHora} minutos`);
   } catch (error) {
     console.error(`Error al calcular el promedio de diferencias de hora: ${error.message}`);
   }
 }
 
-let initialTimeCoordinador = new Date();
-//  Método para ajustar la hora del coordinador
+let horaActualizada =0;
+// Método para ajustar la hora del coordinador
 const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
-  let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
-  adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
-  const horaFormateada = formatearHora(adjustedTimeCoordinador);
-  printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
+  let adjustedTimeCoordinador = new Date(initialTimeCoordinador); // Crear una nueva instancia de Date para evitar modificar la hora original
+
+  // Obtener los componentes de tiempo actuales
+  const horas = adjustedTimeCoordinador.getHours();
+  const minutos = adjustedTimeCoordinador.getMinutes();
+  const segundos = adjustedTimeCoordinador.getSeconds();
+  const milisegundos = adjustedTimeCoordinador.getMilliseconds();
+
+  // Calcular la cantidad total de minutos a agregar
+  const minutosAgregar = Math.floor(ajusteHora);
+  const segundosAgregar = Math.floor((ajusteHora - minutosAgregar) * 60); // Convertir el exceso de minutos en segundos
+  const milisegundosAgregar = Math.floor((ajusteHora - minutosAgregar - segundosAgregar / 60) * 60000); // Convertir el exceso de segundos en milisegundos
+
+  // Sumar los minutos, segundos y milisegundos
+  let minutosActualizados = minutos + minutosAgregar;
+  let segundosActualizados = segundos + segundosAgregar;
+  let milisegundosActualizados = milisegundos + milisegundosAgregar;
+
+  // Ajustar los segundos si hay exceso de milisegundos
+  if (milisegundosActualizados >= 1000) {
+    segundosActualizados += Math.floor(milisegundosActualizados / 1000);
+    milisegundosActualizados %= 1000;
+  }
+
+  // Ajustar los minutos si hay exceso de segundos
+  if (segundosActualizados >= 60) {
+    minutosActualizados += Math.floor(segundosActualizados / 60);
+    segundosActualizados %= 60;
+  }
+
+  // Ajustar las horas si hay exceso de minutos
+  if (minutosActualizados >= 60) {
+    horas += Math.floor(minutosActualizados / 60);
+    minutosActualizados %= 60;
+  }
+
+  // Establecer los nuevos valores de hora
+  adjustedTimeCoordinador.setHours(horas);
+  adjustedTimeCoordinador.setMinutes(minutosActualizados);
+  adjustedTimeCoordinador.setSeconds(segundosActualizados);
+  adjustedTimeCoordinador.setMilliseconds(milisegundosActualizados);
+
+  horaActualizada = adjustedTimeCoordinador;
+  printLog(`Hora del coordinador actualizada: ${formatearHora(horaActualizada)}`);
   // ENVIAR NUEVA HORA A LOS SERVIDORES
+  ajusteServidores()
 };
 
-//let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
-
-// Método para ajustar la hora del coordinador y enviar la nueva hora a los servidores
-const ajustarHoraCoordinadorEnviarServidores = async (initialTimeCoordinador, serversList, ajusteHora) => {
+const ajusteServidores = async () => {
+  console.log(diferenciaTime)
   try {
-    // Ajustar la hora del coordinador
-    adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
-    const horaFormateada = formatearHora(adjustedTimeCoordinador);
-    printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
-
-    // Enviar la nueva hora a los servidores
-    for (const server of serversList) {
-      const url = `${server}/actualizarHora`;
-      const horaServidor = new Date(initialTimeCoordinador);
-      const diferenciaCliente = diferenciaTime(server);
-      horaServidor.setSeconds(horaServidor.getSeconds() + diferenciaCliente + ajusteHora);
-      await axios.post(url, { nuevaHora: horaServidor });
-      printLog(`Nueva hora enviada al servidor ${server}: ${formatearHora(horaServidor)}`);
+    for (let i = 0; i < diferenciaTime.length; i++) {
+      diferenciaTime[i].diferencia = (-diferenciaTime[i].diferencia)
+      console.log("Lista con signos cambiados")
+      console.log(diferenciaTime)
+      diferenciaTime[i].diferencia = diferenciaTime[i].diferencia + ajusteHora
     }
-
+    console.log("Lista con el tiempo a ajustar: ", ajusteHora)
+    console.log(diferenciaTime)
   } catch (error) {
-    console.error(`Error al ajustar la hora del coordinador y enviar la nueva hora a los servidores: ${error.message}`);
+    console.error(`Error al calcular el ajuste de los servidores: ${error.message}`);
   }
-};
-
-
-
-
-const ajustarHoraCoordinadorEnviarServidores2 = async (initialTimeCoordinador, serversList, ajusteHora, diferenciaTime) => {
-  try {
-    // Ajustar la hora del coordinador
-    adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
-    const horaFormateada = formatearHora(adjustedTimeCoordinador);
-    printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
-
-    // Enviar la nueva diferencia de hora a los servidores
-    for (let i = 0; i < serversList.length; i++) {
-      const server = serversList[i];
-      const url = `${server}/actualizarHora`;
-
-      // Calcular la nueva diferencia de tiempo para este servidor
-      const diferenciaNueva = diferenciaTime[i] + ajusteHora;
-
-      // Enviar la nueva diferencia de tiempo al servidor
-      await axios.post(url, { nuevaDiferencia: diferenciaNueva });
-
-      printLog(`Nueva diferencia de hora enviada al servidor ${server}: ${diferenciaNueva} segundos`);
-    }
-
-  } catch (error) {
-    console.error(`Error al ajustar la hora del coordinador y enviar la nueva diferencia de hora a los servidores: ${error.message}`);
-  }
-};
+}
 
 
 
@@ -308,7 +316,7 @@ io.on('connection', socket => {
   socket.emit('servers_list' + serversList);
 
   socket.on('disconnect', () => {
-    printLog('Cliente desconectado: ' + socket.id);
+      printLog('Cliente desconectado: ' + socket.id);
   });
 });
 
