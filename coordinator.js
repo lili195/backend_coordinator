@@ -24,6 +24,8 @@ const io = new Server(server, {
     }
 });
 
+
+const port = 3000
 let serversList = ['http://localhost:16000', ];
 let timeout = 10000; 
 let diferenciaTime = [];
@@ -41,7 +43,6 @@ function sendLogsToClient(logs) {
   io.emit('logs', { logs: logs });
 }
 
-const port = 3000
 
 // Ruta para obtener la hora del coordinador
 app.get('/coordinatorTime', async (req, res) => {
@@ -63,6 +64,7 @@ app.get('/servers', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
 
 let port_new_instance = 16000
 let ip_container = 'http://localhost'
@@ -135,7 +137,7 @@ const berkeley = async () => {
   await enviarHoraAClientes(initialTimeCoordinador, serversList);
   await recibirDiferenciaHoraClientes(serversList);
   await promedioDiferencias();
-  await ajustarHoraCoordinador();
+  await ajustarHoraCoordinador(initialTimeCoordinador);
   //await ajustarHoraCoordinadorEnviarServidores(initialTimeCoordinador, serversList,adjustedTimeCoordinador);
 }
 
@@ -163,16 +165,16 @@ const enviarHoraAClientes = async (initialTimeCoordinador, serversList) => {
 };
 
 
-
 // Método para recibir la diferencia de horas de cada cliente en la lista
 const recibirDiferenciaHoraClientes = async (serversList) => {
   try {
 
+      diferenciaTime = [];
       for (const server of serversList) {
           const response = await axios.post(`${server}/diferenciaHora`);
-          const diferenciaHora = response.data.diferenciaHora;
+          const diferenciaHora = response.data;
           printLog(`Diferencia de hora recibida del servidor ${server}: ${diferenciaHora}`);
-          diferenciaTime.push({ servidor: server, diferenciaHora: diferenciaHora });
+          diferenciaTime.push(diferenciaHora);
       }
   } catch (error) {
       console.error('Error al recibir la diferencia de hora de los clientes:', error);
@@ -186,24 +188,67 @@ const promedioDiferencias = async () => {
     let totalDiferences = 0;
     for (const diferenciaCliente of diferenciaTime){
       totalDiferences+= diferenciaCliente;
+      printLog('Total DIFERENCES -->' + totalDiferences)
     }
 
     ajusteHora = totalDiferences / (diferenciaTime.length + 1);
-    printLog(`Promedio de diferencias de hora: ${ajusteHora} segundos`);
+    printLog(`PROMEDIO DIFERENCIAS --> ${totalDiferences} / ${diferenciaTime.length} + 1`);
+    printLog(`Promedio de diferencias de hora: ${ajusteHora} minutos`);
   } catch (error) {
     console.error(`Error al calcular el promedio de diferencias de hora: ${error.message}`);
   }
 }
 
-let initialTimeCoordinador = new Date();
-//  Método para ajustar la hora del coordinador
+let horaActualizada =0;
+// Método para ajustar la hora del coordinador
 const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
-  let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
-  adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
-  const horaFormateada = formatearHora(adjustedTimeCoordinador);
-  printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
+  let adjustedTimeCoordinador = new Date(initialTimeCoordinador); // Crear una nueva instancia de Date para evitar modificar la hora original
+
+  // Obtener los componentes de tiempo actuales
+  const horas = adjustedTimeCoordinador.getHours();
+  const minutos = adjustedTimeCoordinador.getMinutes();
+  const segundos = adjustedTimeCoordinador.getSeconds();
+  const milisegundos = adjustedTimeCoordinador.getMilliseconds();
+
+  // Calcular la cantidad total de minutos a agregar
+  const minutosAgregar = Math.floor(ajusteHora);
+  const segundosAgregar = Math.floor((ajusteHora - minutosAgregar) * 60); // Convertir el exceso de minutos en segundos
+  const milisegundosAgregar = Math.floor((ajusteHora - minutosAgregar - segundosAgregar / 60) * 60000); // Convertir el exceso de segundos en milisegundos
+
+  // Sumar los minutos, segundos y milisegundos
+  let minutosActualizados = minutos + minutosAgregar;
+  let segundosActualizados = segundos + segundosAgregar;
+  let milisegundosActualizados = milisegundos + milisegundosAgregar;
+
+  // Ajustar los segundos si hay exceso de milisegundos
+  if (milisegundosActualizados >= 1000) {
+    segundosActualizados += Math.floor(milisegundosActualizados / 1000);
+    milisegundosActualizados %= 1000;
+  }
+
+  // Ajustar los minutos si hay exceso de segundos
+  if (segundosActualizados >= 60) {
+    minutosActualizados += Math.floor(segundosActualizados / 60);
+    segundosActualizados %= 60;
+  }
+
+  // Ajustar las horas si hay exceso de minutos
+  if (minutosActualizados >= 60) {
+    horas += Math.floor(minutosActualizados / 60);
+    minutosActualizados %= 60;
+  }
+
+  // Establecer los nuevos valores de hora
+  adjustedTimeCoordinador.setHours(horas);
+  adjustedTimeCoordinador.setMinutes(minutosActualizados);
+  adjustedTimeCoordinador.setSeconds(segundosActualizados);
+  adjustedTimeCoordinador.setMilliseconds(milisegundosActualizados);
+
+  horaActualizada = adjustedTimeCoordinador;
+  printLog(`Hora del coordinador actualizada: ${formatearHora(horaActualizada)}`);
   // ENVIAR NUEVA HORA A LOS SERVIDORES
 };
+
 
 //let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
 
