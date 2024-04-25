@@ -174,7 +174,7 @@ const recibirDiferenciaHoraClientes = async (serversList) => {
           const response = await axios.post(`${server}/diferenciaHora`);
           const diferenciaHora = response.data;
           printLog(`Diferencia de hora recibida del servidor ${server}: ${diferenciaHora}`);
-          diferenciaTime.push(diferenciaHora);
+          diferenciaTime.push({server: server, diferencia: diferenciaHora});
       }
   } catch (error) {
       console.error('Error al recibir la diferencia de hora de los clientes:', error);
@@ -187,11 +187,12 @@ const promedioDiferencias = async () => {
   try {
     let totalDiferences = 0;
     for (const diferenciaCliente of diferenciaTime){
-      totalDiferences+= diferenciaCliente;
-      printLog('Total DIFERENCES -->' + totalDiferences)
+      totalDiferences+= diferenciaCliente.diferencia;
     }
+    printLog('Total DIFERENCIAS -->' + totalDiferences)
 
-    ajusteHora = totalDiferences / (diferenciaTime.length + 1);
+
+    ajusteHora = Math.abs(totalDiferences / (diferenciaTime.length + 1));
     printLog(`PROMEDIO DIFERENCIAS --> ${totalDiferences} / ${diferenciaTime.length} + 1`);
     printLog(`Promedio de diferencias de hora: ${ajusteHora} minutos`);
   } catch (error) {
@@ -246,67 +247,32 @@ const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
 
   horaActualizada = adjustedTimeCoordinador;
   printLog(`Hora del coordinador actualizada: ${formatearHora(horaActualizada)}`);
+  printLog(`AJUSTANDO HORA CLIENTES .... `);
   // ENVIAR NUEVA HORA A LOS SERVIDORES
+  ajusteServidores();
+
 };
 
-
-//let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
-
-// Método para ajustar la hora del coordinador y enviar la nueva hora a los servidores
-const ajustarHoraCoordinadorEnviarServidores = async (initialTimeCoordinador, serversList, ajusteHora) => {
+const ajusteServidores = async () => {
   try {
-    // Ajustar la hora del coordinador
-    adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
-    const horaFormateada = formatearHora(adjustedTimeCoordinador);
-    printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
-
-    // Enviar la nueva hora a los servidores
-    for (const server of serversList) {
-      const url = `${server}/actualizarHora`;
-      const horaServidor = new Date(initialTimeCoordinador);
-      const diferenciaCliente = diferenciaTime(server);
-      horaServidor.setSeconds(horaServidor.getSeconds() + diferenciaCliente + ajusteHora);
-      await axios.post(url, { nuevaHora: horaServidor });
-      printLog(`Nueva hora enviada al servidor ${server}: ${formatearHora(horaServidor)}`);
-    }
-
-  } catch (error) {
-    console.error(`Error al ajustar la hora del coordinador y enviar la nueva hora a los servidores: ${error.message}`);
-  }
-};
-
-
-
-
-const ajustarHoraCoordinadorEnviarServidores2 = async (initialTimeCoordinador, serversList, ajusteHora, diferenciaTime) => {
-  try {
-    // Ajustar la hora del coordinador
-    adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
-    const horaFormateada = formatearHora(adjustedTimeCoordinador);
-    printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
-
-    // Enviar la nueva diferencia de hora a los servidores
-    for (let i = 0; i < serversList.length; i++) {
-      const server = serversList[i];
-      const url = `${server}/actualizarHora`;
-
-      // Calcular la nueva diferencia de tiempo para este servidor
-      const diferenciaNueva = diferenciaTime[i] + ajusteHora;
-
-      // Enviar la nueva diferencia de tiempo al servidor
-      await axios.post(url, { nuevaDiferencia: diferenciaNueva });
+    for (let i = 0; i < diferenciaTime.length; i++) {
+      diferenciaTime[i].diferencia = (-diferenciaTime[i].diferencia)
+      diferenciaTime[i].diferencia = diferenciaTime[i].diferencia + ajusteHora
       
-      printLog(`Nueva diferencia de hora enviada al servidor ${server}: ${diferenciaNueva} segundos`);
+      printLog(`Enviando ajuste a ${diferenciaTime[i].server}. Diferencia: ${diferenciaTime[i].diferencia}`);
+      try {
+        const url = `${diferenciaTime[i].server}/ajustarHora`;
+        const res = await axios.post(url, { ajuste: diferenciaTime[i].diferencia });
+      
+      printLog(`Respuesta del servidor ${diferenciaTime[i].server}: ${res.data}`);
+      } catch (error) {
+        console.error(`Error al enviar el ajuste a los servidores: ${error.message}`);
+      }
     }
-
   } catch (error) {
-    console.error(`Error al ajustar la hora del coordinador y enviar la nueva diferencia de hora a los servidores: ${error.message}`);
+    console.error(`Error al calcular el ajuste de los servidores: ${error.message}`);
   }
-};
-
-
-
-
+}
 
 
 
