@@ -26,7 +26,7 @@ const io = new Server(server, {
 
 
 const port = 3000
-let serversList = ['http://localhost:16000', ];
+let serversList = [];
 let timeout = 10000; 
 let diferenciaTime = [];
 let ajusteHora = 0;
