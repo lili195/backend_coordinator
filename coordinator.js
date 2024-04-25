@@ -302,25 +302,25 @@ const checkServerStatus = async () => {
               resTime = end - start;
               printLog(`=>    Tiempo de respuesta del servidor en milisegundos ${server} es ${resTime}ms`)
               if (resTime >= timeout) {
-                  printLog(`Servidor ${server} marcado como inactivo por exceder el tiempo de respuesta.`);
+                  serversList.splice(serversList.indexOf(server), 1);
+                  io.emit('server_deleted', { server, responseTime: resTime });
+                  printLog(`Servidor ${server} eliminado por exceder el tiempo de respuesta.`);
                   printLog("+++++++++++ Servidores restantes +++++++++++ \n")
-                  printLog(serversList);
-                  updatedServersList.push({ ...server, isActive: false });
+                  printLog(serversList)
               } else {
-                  updatedServersList.push({ ...server, isActive: true });
-                  printLog(`=========     Servidor ${server} vivo     =========`);
-                  printLog(`Servidores restantes:  ${serversList}`);
+                  updatedServersList.push({ server, responseTime: resTime });
+                  printLog(`=========     Servidor ${server} vivo     =========`)
               }
           }
       } catch (error) {
-          printLog(`La solicitud fue rechazada, servidor ${server} marcado como inactivo`);
+          serversList.splice(serversList.indexOf(server), 1);
+          io.emit('server_deleted', { server, responseTime: null });
+          printLog(`La solicitud fue rechazada, servidor ${server} eliminado`);
           printLog("+++++++++++ Servidores restantes +++++++++++ \n")
           printLog(serversList)
-          updatedServersList.push({ ...server, isActive: false });
       }
   }
-  // Enviar la lista actualizada de servidores al frontend
-  io.emit('update_servers', { serversList: updatedServersList });
+  io.emit('update_servers', { servers: updatedServersList })
 };
 
 
