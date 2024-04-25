@@ -129,6 +129,17 @@ app.get('/runBerkeleyAlgorithm', async (req, res) => {
   }
 });
 
+// Ruta para monitorear servidores
+app.get('/checkServerStatus', async (req, res) => {
+  try {
+    await checkServerStatus();
+    res.json({ message: 'SERVICIO MONITOREO COMPLETO' });
+  } catch (error) {
+    console.error('Error al ejecutar el servicio de Monitoreo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 //ALGORITMO DE BERKELEY 
 
 // Método principal del algoritmo de Berkeley
@@ -276,45 +287,44 @@ const ajusteServidores = async () => {
 
 
 
-// const checkServerStatus = async () => {
-//   const updatedServersList = [];
-//   for (const server of serversList) {
-//       printLog(`Iniciando chequeo para el servidor: ${server} ....`)
-//       try {
-//           const url = server + "/coordinador/healthcheck"
-//           printLog("Enviando peticiones a:" + url)
+const checkServerStatus = async () => {
+  const updatedServersList = [];
+  for (const server of serversList) {
+      printLog(`Iniciando chequeo para el servidor: ${server} ....`)
+      try {
+          const url = server + "/coordinador/healthcheck"
+          printLog("Enviando peticiones a:" + url)
 
-//           const start = Date.now();
-//           const res = await axios.get(url)
-//           if (res) {
-//               const end = Date.now();
-//               resTime = end - start;
-//               printLog(`=>    Tiempo de respuesta del servidor en milisegundos ${server} es ${resTime}ms`)
-//               if (resTime >= timeout) {
-//                   serversList.splice(serversList.indexOf(server), 1);
-//                   printLog(`Servidor ${server} eliminado por exceder el tiempo de respuesta.`);
-//                   printLog("+++++++++++ Servidores restantes +++++++++++ \n")
-//                   console.log(serversList)
-//                   io.emit('server_deleted', { server, responseTime: resTime });
-//               } else {
-//                   updatedServersList.push({ server, responseTime: resTime });
-//                   printLog(`=========     Servidor ${server} vivo     =========`)
-//               }
-//           }
-//       } catch (error) {
-//           serversList.splice(serversList.indexOf(server), 1);
-//           printLog(`La solicitud fue rechazada, servidor ${server} eliminado`);
-//           printLog("+++++++++++ Servidores restantes +++++++++++ \n")
-//           console.log(serversList)
-//           io.emit('server_deleted', { server, responseTime: null });
-//       }
-//   }
-//   io.emit('update_servers', { servers: updatedServersList })
-// };
+          const start = Date.now();
+          const res = await axios.get(url)
+          if (res) {
+              const end = Date.now();
+              resTime = end - start;
+              printLog(`=>    Tiempo de respuesta del servidor en milisegundos ${server} es ${resTime}ms`)
+              if (resTime >= timeout) {
+                  printLog(`Servidor ${server} marcado como inactivo por exceder el tiempo de respuesta.`);
+                  printLog("+++++++++++ Servidores restantes +++++++++++ \n")
+                  printLog(serversList);
+                  updatedServersList.push({ ...server, isActive: false });
+              } else {
+                  updatedServersList.push({ ...server, isActive: true });
+                  printLog(`=========     Servidor ${server} vivo     =========`);
+                  printLog(`Servidores restantes:  ${serversList}`);
+              }
+          }
+      } catch (error) {
+          printLog(`La solicitud fue rechazada, servidor ${server} marcado como inactivo`);
+          printLog("+++++++++++ Servidores restantes +++++++++++ \n")
+          printLog(serversList)
+          updatedServersList.push({ ...server, isActive: false });
+      }
+  }
+  // Enviar la lista actualizada de servidores al frontend
+  io.emit('update_servers', { serversList: updatedServersList });
+};
 
 
-// // Verificar el estado de los servidores cada 5 segundos
-// setInterval(checkServerStatus, 5000)
+
 
 io.on('connection', socket => {
   printLog('Cliente conectado: ' + socket.id);
