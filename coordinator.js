@@ -26,7 +26,8 @@ const io = new Server(server, {
 
 
 const port = 3000
-let serversList = ['http://localhost:16000', 'http://localhost:14000'];
+//let serversList = ['http://localhost:16000', 'http://localhost:14000'];
+let serversList = ['http://localhost:16000',];
 let timeout = 10000; 
 let diferenciaTime = [];
 let ajusteHora = 0;
@@ -247,8 +248,10 @@ const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
 
   horaActualizada = adjustedTimeCoordinador;
   printLog(`Hora del coordinador actualizada: ${formatearHora(horaActualizada)}`);
+  printLog(`AJUSTANDO HORA CLIENTES .... `);
   // ENVIAR NUEVA HORA A LOS SERVIDORES
-  ajusteServidores()
+  ajusteServidores();
+
 };
 
 const ajusteServidores = async () => {
@@ -256,9 +259,13 @@ const ajusteServidores = async () => {
     for (let i = 0; i < diferenciaTime.length; i++) {
       diferenciaTime[i].diferencia = (-diferenciaTime[i].diferencia)
       diferenciaTime[i].diferencia = diferenciaTime[i].diferencia + ajusteHora
+      
+      printLog(`Enviando ajuste a ${diferenciaTime[i].server}. Diferencia: ${diferenciaTime[i].diferencia}`);
       try {
         const url = `${diferenciaTime[i].server}/ajustarHora`;
         const res = await axios.post(url, { ajuste: diferenciaTime[i].diferencia });
+      
+      printLog(`Respuesta del servidor ${diferenciaTime[i].server}: ${res.data}`);
       } catch (error) {
         console.error(`Error al enviar el ajuste a los servidores: ${error.message}`);
       }
