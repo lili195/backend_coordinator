@@ -129,6 +129,7 @@ app.post('/runBerkeleyAlgorithm', async (req, res) => {
 
 // Método para obtener la hora de cada servidor en la lista
 const horasServidores = [];
+
 const obtenerHoraServidores = async (serversList) => {
   for (const server of serversList) {
     try {
@@ -160,6 +161,32 @@ const calcularPromedio = (horasServidores) => {
 // Método para obtener la diferencia entre el tiempo actual del servidor y el promedio de los tiempos
 const calcularDiferenciaTiempo = (horaActualServidor, promedioTiempo) => {
   return horaActualServidor - promedioTiempo;
+};
+
+// Método para ajustar la hora del coordinador y enviar la nueva hora a los servidores
+const ajustarHoraCoordinadorEnviarServidores = async (initialTimeCoordinador, serversList, ajusteHora) => {
+  try {
+    // Ajustar la hora del coordinador
+    let adjustedTimeCoordinador = new Date(initialTimeCoordinador);
+    adjustedTimeCoordinador.setSeconds(adjustedTimeCoordinador.getSeconds() + ajusteHora);
+    const horaFormateada = formatearHora(adjustedTimeCoordinador);
+    printLog(`Hora del coordinador actualizada: ${horaFormateada}`);
+
+  // Obtener las diferencias de tiempo para cada cliente
+  const diferenciasClientes = await recibirDiferenciaHoraClientes(serversList);
+
+  // Enviar la nueva diferencia de tiempo ajustada a los servidores
+  for (const server of serversList) {
+    const url = `${server}//actualizarDiferenciaTiempo`; 
+    const diferenciaCliente = diferenciasClientes[server];
+    const diferenciaAjustada = diferenciaCliente + ajusteHora;
+    await axios.post(url, { nuevaDiferencia: diferenciaAjustada });
+    printLog(`Nueva diferencia de tiempo enviada al servidor ${server}: ${diferenciaAjustada} segundos`);
+  }
+
+  } catch (error) {
+    console.error(`Error al ajustar la hora del coordinador y enviar la nueva diferencia de tiempo a los servidores: ${error.message}`);
+  }
 };
 
 // Método principal del algoritmo de Berkeley
