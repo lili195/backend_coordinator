@@ -252,16 +252,17 @@ const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
 };
 
 const ajusteServidores = async () => {
-  console.log(diferenciaTime)
   try {
     for (let i = 0; i < diferenciaTime.length; i++) {
       diferenciaTime[i].diferencia = (-diferenciaTime[i].diferencia)
-      console.log("Lista con signos cambiados")
-      console.log(diferenciaTime)
       diferenciaTime[i].diferencia = diferenciaTime[i].diferencia + ajusteHora
+      try {
+        const url = `${diferenciaTime[i].server}/ajustarHora`;
+        const res = await axios.post(url, { ajuste: diferenciaTime[i].diferencia });
+      } catch (error) {
+        console.error(`Error al enviar el ajuste a los servidores: ${error.message}`);
+      }
     }
-    console.log("Lista con el tiempo a ajustar: ", ajusteHora)
-    console.log(diferenciaTime)
   } catch (error) {
     console.error(`Error al calcular el ajuste de los servidores: ${error.message}`);
   }
