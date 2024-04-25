@@ -24,7 +24,6 @@ const io = new Server(server, {
   }
 });
 
-
 const port = 3000
 let serversList = [];
 let updatedServersList = [];
@@ -259,6 +258,7 @@ const ajustarHoraCoordinador = async (initialTimeCoordinador) => {
 
   horaActualizada = adjustedTimeCoordinador;
   printLog(`Hora del coordinador actualizada: ${formatearHora(horaActualizada)}`);
+  printLog(`AJUSTANDO HORA CLIENTES .... `);
   printLog(`AJUSTANDO HORA CLIENTES .... `);
   // ENVIAR NUEVA HORA A LOS SERVIDORES
   ajusteServidores();
