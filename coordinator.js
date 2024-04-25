@@ -24,7 +24,7 @@ const io = new Server(server, {
   }
 });
 
-let serversList = ['http://localhost:16000',];
+let serversList = ['http://localhost:16000', 'http://localhost:14000'];
 let timeout = 10000;
 let diferenciaTime = [];
 let ajusteHora = 0;
@@ -82,7 +82,7 @@ function launchNewInstance() {
   printLog("SERVIDORES EN EL ARREGLO: " + serversList)
   /** */
 
-  printLog("NUEVO PUERTO:" + currentPort)
+  printLog("NUEVO PUERTO:" + port_new_instance)
 
   // Captura y muestra la salida estándar del proceso
   batProcess.stdout.on('data', (data) => {
@@ -135,7 +135,7 @@ const berkeley = async () => {
   await enviarHoraAClientes(initialTimeCoordinador, serversList);
   await recibirDiferenciaHoraClientes(serversList);
   await promedioDiferencias();
-  // await ajustarHoraCoordinador();
+  //await ajustarHoraCoordinador();
   //await ajustarHoraCoordinadorEnviarServidores(initialTimeCoordinador, serversList,adjustedTimeCoordinador);
 }
 
@@ -185,9 +185,9 @@ const promedioDiferencias = async () => {
   try {
     let totalDiferences = 0;
     for (const diferenciaCliente of diferenciaTime) {
-      totalDiferences += diferenciaCliente;
+      totalDiferences += diferenciaCliente.diferenciaHora;
     }
-
+    console.log(totalDiferences)
     ajusteHora = totalDiferences / (diferenciaTime.length + 1);
     printLog(`Promedio de diferencias de hora: ${ajusteHora} segundos`);
   } catch (error) {
